@@ -2,7 +2,7 @@
 
 A SillyTavern extension that turns every roleplay chat into a **persistent, living world**. Instead of a static lore dump, a background "director" quietly maintains a real simulation — a city with a clock, weather, streets you can travel, people with goals, items with owners, factions, rumors, and events — and weaves its atmosphere into every single reply.
 
-> **v1.2.0** — Active world materialization: the director now creates items, points of interest, NPCs, and events *on the spot* whenever the scene implies them, and new locations are instantly travelable.
+> **v1.3.0** — Lean and reliable: director input cut ~86%, scene brief on every reply ~80% smaller, and the director no longer blocks the character reply (detached + hard timeout).
 
 ---
 
@@ -23,6 +23,8 @@ A SillyTavern extension that turns every roleplay chat into a **persistent, livi
 - State updates run with **reasoning disabled** on OpenRouter (`effort: none`) so DeepSeek-style thinking models emit JSON instead of burning the token budget on chain-of-thought.
 - Real token budgets (bootstrap 6000 / director 3000, configurable) with automatic headroom on retry.
 - Honest error messages — the toast shows the *actual* failure, not "check your API connection".
+- **Never blocks your replies** — the director runs detached from generation with a 120s hard timeout, so a slow or hung API call can't stall the character.
+- **Token-lean by design** — slim world-state views, capped character lore, and a compact scene brief keep every background pass and every reply cheap.
 
 ---
 
