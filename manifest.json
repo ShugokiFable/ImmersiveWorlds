@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "ShugokiFable",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "homePage": "https://github.com/ShugokiFable/ImmersiveWorlds",
   "minimum_client_version": "1.18.0",
   "generate_interceptor": "immersiveWorldsGenerationInterceptor",

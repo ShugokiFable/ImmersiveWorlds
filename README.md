@@ -72,6 +72,7 @@ Then **restart SillyTavern** (or hard-refresh the browser with Ctrl+F5) and enab
 
 ## Changelog
 
+- **1.3.0** — Token efficiency & reply reliability: director input cut ~86% (slim world state, capped character lore, 6-message transcript); scene brief on every reply ~80% smaller; director no longer blocks the character reply (detached + 120s hard timeout); crash guards for undefined chat entries (fixes `TypeError: Cannot read properties of undefined` in the ST log).
 - **1.2.0** — Active world materialization; `allowNewLocations`; two-way auto-linking of new POIs; Atmosphere card + weather icons in the panel; dialog width fix; growth budgets per `simulationDetail`.
 - **1.1.0** — Reasoning-safe generation for OpenRouter/DeepSeek (thinking disabled, real token budgets, honest errors); prose SCENE BRIEF injection; director ambient lines persisted.
 - **1.0.1** — Initial published build.

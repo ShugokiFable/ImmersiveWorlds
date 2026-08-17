@@ -101,7 +101,7 @@ function cleanText(value, max = 800) {
         .slice(0, max);
 }
 
-function currentCharacterSummary() {
+function currentCharacterSummary(max = 5000) {
     const ctx = getContext();
     if (!ctx) return '';
     if (ctx.groupId) {
@@ -109,20 +109,20 @@ function currentCharacterSummary() {
         const members = (group?.members || [])
             .map(avatar => ctx.characters?.find(c => c.avatar === avatar))
             .filter(Boolean)
-            .map(c => `${c.name}: ${cleanText(c.description || c.personality, 500)}`);
-        return `Active ensemble: ${members.join('\n')}`.slice(0, 5000);
+            .map(c => `${c.name}: ${cleanText(c.description || c.personality, 300)}`);
+        return `Active ensemble: ${members.join('\n')}`.slice(0, max);
     }
     const c = ctx.characters?.[ctx.characterId];
     if (!c) return '';
     const bookEntries = c?.data?.character_book?.entries || [];
-    const lore = bookEntries.slice(0, 20).map(e => cleanText(e.content, 450)).filter(Boolean).join('\n');
+    const lore = bookEntries.slice(0, 10).map(e => cleanText(e.content, 200)).filter(Boolean).join('\n');
     return [
         `Character: ${c.name || ''}`,
-        `Description: ${cleanText(c.description, 1800)}`,
-        `Personality: ${cleanText(c.personality, 1000)}`,
-        `Scenario: ${cleanText(c.scenario, 1400)}`,
+        `Description: ${cleanText(c.description, 900)}`,
+        `Personality: ${cleanText(c.personality, 600)}`,
+        `Scenario: ${cleanText(c.scenario, 800)}`,
         lore ? `Embedded lore:\n${lore}` : '',
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n').slice(0, max);
 }
 
 function baseWorld() {
@@ -270,27 +270,36 @@ function currentLocation(state) {
     return state.locations.find(x => x.id === state.currentLocationId) || state.locations[0];
 }
 
+function slimLocation(l) {
+    return { id: l.id, name: l.name, type: l.type, connections: l.connections, description: cleanText(l.description, 220) };
+}
+function slimNpc(n) {
+    return { id: n.id, name: n.name, role: n.role, status: n.status, locationId: n.locationId, personality: cleanText(n.personality, 120) };
+}
+function slimItem(i) {
+    return { id: i.id, name: i.name, type: i.type, quantity: i.quantity, ownerId: i.ownerId, locationId: i.locationId, description: cleanText(i.description, 120) };
+}
 function conciseState(state) {
     const loc = currentLocation(state);
-    const present = state.npcs.filter(n => n.locationId === state.currentLocationId && n.status !== 'dead').slice(0, 12);
-    const localItems = state.items.filter(i => i.locationId === state.currentLocationId || present.some(n => n.id === i.ownerId)).slice(0, 16);
-    const activeEvents = state.events.filter(e => !e.resolved).slice(-8);
-    const activeQuests = state.quests.filter(q => !['resolved', 'failed', 'complete'].includes(String(q.status).toLowerCase())).slice(-8);
+    const present = state.npcs.filter(n => n.locationId === state.currentLocationId && n.status !== 'dead').slice(0, 6).map(slimNpc);
+    const localItems = state.items.filter(i => i.locationId === state.currentLocationId || present.some(n => n.id === i.ownerId)).slice(0, 8).map(slimItem);
+    const activeEvents = state.events.filter(e => !e.resolved).slice(-4).map(e => ({ id: e.id || '', name: e.name || e.title || e.summary || 'event', status: e.status || '', description: cleanText(e.description || e.summary || '', 160) }));
+    const activeQuests = state.quests.filter(q => !['resolved', 'failed', 'complete'].includes(String(q.status).toLowerCase())).slice(-4).map(q => ({ id: q.id || '', name: q.name || 'quest', status: q.status || '', description: cleanText(q.description || '', 160) }));
     return {
         world: state.worldName,
-        premise: state.premise,
+        premise: cleanText(state.premise, 600),
         genre: state.genre,
         tone: state.tone,
-        rules: state.rules,
+        rules: state.rules.slice(0, 8),
         clock: state.clock,
-        location: loc,
-        nearbyLocations: state.locations.filter(x => loc?.connections?.includes(x.id)).slice(0, 10),
+        location: loc ? slimLocation(loc) : null,
+        nearbyLocations: state.locations.filter(x => loc?.connections?.includes(x.id)).slice(0, 5).map(slimLocation),
         presentCharacters: present,
         localItems,
         activeEvents,
         activeQuests,
-        player: state.player,
-        recentChronicle: state.chronicle.slice(-8),
+        player: { currency: state.player.currency, reputation: state.player.reputation },
+        recentChronicle: state.chronicle.slice(-4).map(c => cleanText(c.text, 160)),
     };
 }
 
@@ -346,9 +355,9 @@ function buildSceneBrief(state) {
     const lines = [];
     lines.push(`Day ${state.clock?.day || 1}, ${state.clock?.time || '09:00'} — ${String(state.clock?.weather || 'clear')}. ${loc?.name || 'The current scene'} (${loc?.type || 'place'}).`);
     lines.push(atmosphereLine(state));
-    const present = state.npcs.filter(n => n.locationId === state.currentLocationId && n.status !== 'dead').slice(0, 10);
+    const present = state.npcs.filter(n => n.locationId === state.currentLocationId && n.status !== 'dead').slice(0, 5);
     if (present.length) {
-        lines.push('Present: ' + present.map(n => `${n.name} (${n.role})${n.personality ? ` — ${cleanText(n.personality, 140)}` : ''}`).join('; '));
+        lines.push('Present: ' + present.map(n => `${n.name} (${n.role})${n.personality ? ` — ${cleanText(n.personality, 80)}` : ''}`).join('; '));
     }
     const connected = (loc?.connections || []).map(id => state.locations.find(x => x.id === id)?.name).filter(Boolean);
     if (connected.length) {
@@ -402,20 +411,20 @@ function injectState(state = getState()) {
 }
 
 function messageSignature(chat) {
-    const sample = chat.slice(-4).map(m => `${m.is_user ? 'U' : 'A'}:${cleanText(m.mes, 600)}`).join('|');
+    const sample = (chat || []).filter(Boolean).slice(-4).map(m => `${m.is_user ? 'U' : 'A'}:${cleanText(m.mes, 600)}`).join('|');
     let hash = 2166136261;
     for (let i = 0; i < sample.length; i++) {
         hash ^= sample.charCodeAt(i);
         hash = Math.imul(hash, 16777619);
     }
-    return `${chat.length}:${(hash >>> 0).toString(36)}`;
+    return `${(chat || []).length}:${(hash >>> 0).toString(36)}`;
 }
 
-function recentTranscript(chat, limit = 10) {
-    return chat.slice(-limit).map(m => ({
+function recentTranscript(chat, limit = 6) {
+    return (chat || []).filter(Boolean).slice(-limit).map(m => ({
         speaker: m.name || (m.is_user ? 'User' : 'Character'),
         role: m.is_user ? 'user' : 'assistant',
-        text: cleanText(m.mes, 1800),
+        text: cleanText(m.mes, 900),
     }));
 }
 
@@ -556,7 +565,21 @@ async function providerSafeGenerate({ prompt, schema, responseLength }) {
     return parseJson(result);
 }
 
-async function structuredGenerate({ prompt, schema, responseLength }) {
+function withTimeout(promise, ms, label = 'request') {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function structuredGenerate(args) {
+    // Hard cap on every background call so a hung upstream can never stall the
+    // reply pipeline (SillyTavern awaits generation interceptors).
+    return withTimeout(doStructuredGenerate(args), 120000, 'living-world API call');
+}
+
+async function doStructuredGenerate({ prompt, schema, responseLength }) {
     const s = settings();
 
     // Native structured output is optional because many otherwise functional models
@@ -698,20 +721,20 @@ Do not write story prose. Produce only a state patch. Preserve established facts
 Materialize the world actively: when the scene implies an object (a key, ledger, weapon, letter, goods), a place (a shopfront, door, district, landmark, off-screen destination), or a person (a mentioned name, a passerby with a role), create it now — do not wait for a second mention. Give new locations a connection to the current location. Give new items an owner or a location. Keep new characters distinct and motivated. Let active events and rumors evolve between passes. Be generous within plausibility: a living city is full of small things. Keep off-screen change causally justified and restrained.
 
 WORLD LORE / ACTIVE CHARACTER:
-${currentCharacterSummary()}
+${currentCharacterSummary(1000)}
 
 CURRENT STATE:
 ${JSON.stringify(conciseState(state))}
 
 SCENE BRIEF (current atmosphere — keep it consistent):
-${buildSceneBrief(state)}
+${atmosphereLine(state)}
 
 SIMULATION POLICY:
 Detail level: ${s.simulationDetail}. Off-screen events: ${s.allowOffscreenEvents ? 'allowed when restrained and causally justified' : 'disabled; update only what the transcript directly establishes'}. Dynamic characters: ${s.allowNewCharacters ? 'allowed' : 'disabled'}. Dynamic items: ${s.allowNewItems ? 'allowed' : 'disabled'}. Dynamic places: ${s.allowNewLocations ? 'allowed' : 'disabled'}.
 Growth budget: when the scene implies them, add up to ${s.simulationDetail === 'maximum' ? 3 : s.simulationDetail === 'high' ? 2 : 1} new item(s), ${s.simulationDetail === 'maximum' ? 2 : 1} new location(s), ${s.simulationDetail === 'maximum' ? 2 : 1} new NPC(s), and 1 new event per pass.
 
 RECENT TRANSCRIPT:
-${JSON.stringify(recentTranscript(chat, 10))}
+${JSON.stringify(recentTranscript(chat, 6))}
 
 Patch field guidance:
 - IDs are lowercase stable slugs.
@@ -766,9 +789,9 @@ async function bootstrapWorld() {
         const prompt = `Create a compact but vivid persistent roleplay world from the supplied lore. The result must support an explorable city or settlement with independent residents, useful objects, social tensions, and room to expand naturally.
 Do not overwrite the user persona or decide their history. Seed 5-10 locations with sensible connections, 6-12 NPCs with distinct roles and motives, 6-14 interactable items, 2-4 factions if appropriate, and 1-3 active events. Use stable lowercase slug IDs. Put only currently present characters at the starting location. Avoid generic fantasy filler unless the lore calls for it.
 
-SOURCE LORE:\n${currentCharacterSummary()}
+SOURCE LORE:\n${currentCharacterSummary(1500)}
 
-RECENT CHAT:\n${JSON.stringify(recentTranscript(ctx.chat, 8))}`;
+RECENT CHAT:\n${JSON.stringify(recentTranscript(ctx.chat, 6))}`;
         const generated = await structuredGenerate({ prompt, schema: bootstrapSchema, responseLength: clampBudget(Number(s.bootstrapTokens) || 6000, 2000, 8192) });
         const state = normalizeState({ ...baseWorld(), ...generated, chronicle: [{ at: nowIso(), text: 'The living world was generated from the active lore.' }], meta: { createdAt: nowIso(), updatedAt: nowIso(), tick: 0, lastProcessedSignature: '' } });
         consecutiveDirectorFailures = 0;
@@ -1162,12 +1185,22 @@ async function onMessageChanged() {
 }
 
 globalThis.immersiveWorldsGenerationInterceptor = async function (chat) {
-    const state = getState();
-    injectState(state);
-    if (!settings().enabled || !settings().autoDirector) return;
-    const last = chat?.[chat.length - 1];
-    if (!last?.is_user) return;
-    await runDirector(chat, false);
+    try {
+        const state = getState();
+        injectState(state);
+        if (!settings().enabled || !settings().autoDirector) return;
+        const last = chat?.[chat.length - 1];
+        if (!last?.is_user) return;
+        // SillyTavern AWAITS every generation interceptor before building the
+        // reply (script.js: runGenerationInterceptors). The director must never
+        // block the character, so run it detached: the busy flag prevents
+        // overlapping passes and errors are contained inside runDirector.
+        runDirector(chat || [], false).catch(error => {
+            console.error('[Immersive Worlds] Director pass failed', error);
+        });
+    } catch (error) {
+        console.error('[Immersive Worlds] Interceptor error', error);
+    }
 };
 
 export async function init() {
