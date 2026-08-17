@@ -1,0 +1,16 @@
+{
+  "display_name": "Immersive Worlds: Living Cities",
+  "loading_order": 6,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "ShugokiFable",
+  "version": "1.2.0",
+  "homePage": "https://github.com/ShugokiFable/ImmersiveWorlds",
+  "minimum_client_version": "1.18.0",
+  "generate_interceptor": "immersiveWorldsGenerationInterceptor",
+  "hooks": {
+    "activate": "init"
+  }
+}
