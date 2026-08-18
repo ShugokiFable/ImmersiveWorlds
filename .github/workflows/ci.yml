@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Extension validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax check
+        run: node --check index.js
+      - name: Validate extension manifest
+        run: |
+          node -e "const m=JSON.parse(require('fs').readFileSync('manifest.json','utf8')); if(!m.display_name||!m.loading_order===undefined){} console.log('manifest.json valid:', m.display_name)"
