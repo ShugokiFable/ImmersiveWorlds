@@ -2,7 +2,7 @@
 
 A SillyTavern extension that turns every roleplay chat into a **persistent, living world**. Instead of a static lore dump, a background "director" quietly maintains a real simulation — a city with a clock, weather, streets you can travel, people with goals, items with owners, factions, rumors, and events — and weaves its atmosphere into every single reply.
 
-> **v1.4.0** — Character making is first-class: any world NPC becomes a deep SillyTavern character card with a bundled world lorebook, an AI forge casts new characters on demand, and quest threads are now visible in the panel.
+> **v1.5.0** — Character making is first-class: any world NPC becomes a deep SillyTavern character card with a bundled world lorebook, an AI forge casts new characters on demand, and quest threads are now visible in the panel.
 
 ---
 
@@ -81,6 +81,7 @@ Then **restart SillyTavern** (or hard-refresh the browser with Ctrl+F5) and enab
 
 ## Changelog
 
+- **1.5.0** — Living schedules: NPCs carry dawn/day/dusk/night routines that the director writes and the clock enforces between passes — the city moves even when you don't mention it; NPC inspector shows each routine.
 - **1.4.0** — Character making & story visibility: deep character cards (goals/secrets/factions/inventory/home woven into the description) with edit-before-create; created cards bundle a world lorebook (WI import + `world` binding); new **Forge** button casts 1–2 fresh world-consistent NPCs from a concept; the director now advances quest threads and NPC routines between passes; Quests section in the World tab; LLM markup sanitized out of card descriptions.
 - **1.3.0** — Token efficiency & reply reliability: director input cut ~86% (slim world state, capped character lore, 6-message transcript); scene brief on every reply ~80% smaller; director no longer blocks the character reply (detached + 120s hard timeout); crash guards for undefined chat entries (fixes `TypeError: Cannot read properties of undefined` in the ST log).
 - **1.2.0** — Active world materialization; `allowNewLocations`; two-way auto-linking of new POIs; Atmosphere card + weather icons in the panel; dialog width fix; growth budgets per `simulationDetail`.

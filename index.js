@@ -616,13 +616,39 @@ async function doStructuredGenerate({ prompt, schema, responseLength }) {
     }
 }
 
-function advanceClock(clock, minutes) {
+function advanceClock(clock, minutes, state = null) {
     const amount = Math.max(0, Math.min(10080, Number(minutes) || 0));
     const [h, m] = String(clock.time || '09:00').split(':').map(Number);
     const total = (Number(clock.day || 1) - 1) * 1440 + (h || 0) * 60 + (m || 0) + amount;
     clock.day = Math.floor(total / 1440) + 1;
     const dayMinutes = total % 1440;
     clock.time = `${String(Math.floor(dayMinutes / 60)).padStart(2, '0')}:${String(dayMinutes % 60).padStart(2, '0')}`;
+    if (state) enforceRoutines(state);
+}
+
+// ponytail: slot buckets only (dawn/day/dusk/night); per-hour granularity if the city ever feels robotic.
+function enforceRoutines(state) {
+    if (!state?.locations?.length || !state?.npcs?.length) return;
+    const valid = new Set(state.locations.map(l => l.id));
+    const slot = timeSlotOf(state);
+    let moved = false;
+    for (const n of state.npcs) {
+        const r = n.routine && typeof n.routine === 'object' ? n.routine : null;
+        if (!r || String(n.status).toLowerCase() === 'dead') continue;
+        let target = slug(r[slot] || r.day, '');
+        if (target && !valid.has(target)) {
+            // ponytail: models emit names despite "location ids" guidance; accept both.
+            const byName = state.locations.find(l => slug(l.name, '') === target);
+            target = byName ? byName.id : '';
+        }
+        if (!target || !valid.has(target) || target === n.locationId) continue;
+        n.locationId = target;
+        moved = true;
+    }
+    if (moved) {
+        state.chronicle.push({ at: nowIso(), text: `As ${slot} settles in, folk drift to their usual haunts.` });
+        state.meta.lastProcessedSignature = '';
+    }
 }
 
 function upsert(collection, value, defaults = {}) {
@@ -635,7 +661,7 @@ function upsert(collection, value, defaults = {}) {
 
 function applyPatch(state, patch) {
     const s = settings();
-    advanceClock(state.clock, patch.time_minutes);
+    advanceClock(state.clock, patch.time_minutes, state);
     if (patch.weather) state.clock.weather = String(patch.weather).slice(0, 100);
     if (patch.ambient) state.scene.ambient = String(patch.ambient).trim().slice(0, 500);
 
@@ -718,7 +744,7 @@ async function runDirector(chat, force = false) {
     try {
         const prompt = `Update a persistent roleplay world after reading the latest scene.
 Do not write story prose. Produce only a state patch. Preserve established facts unless the transcript explicitly changes them. Infer reasonable time passage. Never invent actions or decisions for the user.
-Materialize the world actively: when the scene implies an object (a key, ledger, weapon, letter, goods), a place (a shopfront, door, district, landmark, off-screen destination), or a person (a mentioned name, a passerby with a role), create it now — do not wait for a second mention. Give new locations a connection to the current location. Give new items an owner or a location. Keep new characters distinct and motivated. Let active events, rumors, and quests evolve between passes: move characters through plausible routines as time passes (where they work, live, loiter), advance unresolved quests, and mark threads the transcript has settled as resolved. Be generous within plausibility: a living city is full of small things. Keep off-screen change causally justified and restrained.
+Materialize the world actively: when the scene implies an object (a key, ledger, weapon, letter, goods), a place (a shopfront, door, district, landmark, off-screen destination), or a person (a mentioned name, a passerby with a role), create it now — do not wait for a second mention. Give new locations a connection to the current location. Give new items an owner or a location. Give new NPCs a routine (dawn/day/dusk/night → location ids) so they move with the clock even off-screen. Keep new characters distinct and motivated. Let active events, rumors, and quests evolve between passes: move characters through plausible routines as time passes (where they work, live, loiter), advance unresolved quests, and mark threads the transcript has settled as resolved. Be generous within plausibility: a living city is full of small things. Keep off-screen change causally justified and restrained.
 
 WORLD LORE / ACTIVE CHARACTER:
 ${currentCharacterSummary(1000)}
@@ -739,7 +765,7 @@ ${JSON.stringify(recentTranscript(chat, 6))}
 Patch field guidance:
 - IDs are lowercase stable slugs.
 - Updates must include id.
-- New NPCs need name, role, personality, appearance, goals, relationship, locationId, status.
+- New NPCs need name, role, personality, appearance, goals, relationship, locationId, status, and a routine: an object mapping dawn/day/dusk/night to location ids where they usually are at those times.
 - New items need name, type, description, rarity, quantity, ownerId or locationId, properties.
 - ambient is 1-2 vivid sensory sentences for the current scene: light, weather, smell, sound, texture, mood. Concrete, not generic.
 - Chronicle contains 0-3 terse factual continuity notes.
@@ -1001,7 +1027,7 @@ function travelTo(id) {
     if (!target || target.id === state.currentLocationId) return;
     const from = currentLocation(state);
     state.currentLocationId = target.id;
-    advanceClock(state.clock, 15);
+    advanceClock(state.clock, 15, state);
     state.chronicle.push({ at: nowIso(), text: `Travelled from ${from?.name || 'an unknown place'} to ${target.name}.` });
     state.meta.lastProcessedSignature = '';
     injectState(state);
@@ -1051,7 +1077,13 @@ async function inspectNpc(id) {
     const n = state.npcs.find(x => x.id === id);
     if (!n) return;
     const loc = state.locations.find(x => x.id === n.locationId);
-    const content = `<div class="iw-npc-detail"><h2>${escapeHtml(n.name)}</h2><div class="iw-chip-row"><span class="iw-chip">${escapeHtml(n.role)}</span><span class="iw-chip">${escapeHtml(n.status)}</span><span class="iw-chip">${escapeHtml(loc?.name || 'Unknown')}</span></div><h4>Appearance</h4><p>${escapeHtml(n.appearance || 'Unknown')}</p><h4>Personality</h4><p>${escapeHtml(n.personality || 'Unknown')}</p><h4>Relationship</h4><p>${escapeHtml(n.relationship || 'Unknown')}</p><h4>Goals</h4><p>${escapeHtml((n.goals || []).join(' · ') || 'Unknown')}</p></div>`;
+    const routineText = n.routine && typeof n.routine === 'object'
+        ? ['dawn', 'day', 'dusk', 'night'].map(slot => {
+            const target = state.locations.find(l => l.id === slug(n.routine[slot] || '', ''));
+            return target ? `<b>${slot}</b>: ${escapeHtml(target.name)}` : '';
+        }).filter(Boolean).join(' · ')
+        : '';
+    const content = `<div class="iw-npc-detail"><h2>${escapeHtml(n.name)}</h2><div class="iw-chip-row"><span class="iw-chip">${escapeHtml(n.role)}</span><span class="iw-chip">${escapeHtml(n.status)}</span><span class="iw-chip">${escapeHtml(loc?.name || 'Unknown')}</span></div><h4>Appearance</h4><p>${escapeHtml(n.appearance || 'Unknown')}</p><h4>Personality</h4><p>${escapeHtml(n.personality || 'Unknown')}</p><h4>Relationship</h4><p>${escapeHtml(n.relationship || 'Unknown')}</p><h4>Goals</h4><p>${escapeHtml((n.goals || []).join(' · ') || 'Unknown')}</p>${routineText ? `<h4>Routine</h4><p>${routineText}</p>` : ''}</div>`;
     await getContext().callGenericPopup(content, getContext().POPUP_TYPE.TEXT, '', { allowVerticalScrolling: true, wide: true });
 }
 
